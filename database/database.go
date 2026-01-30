@@ -1,31 +1,26 @@
 package database
 
 import (
-	"context"
 	"database/sql"
 	"log"
-	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/lib/pq"
 )
 
 func InitDB(dsn string) (*sql.DB, error) {
-
-	db, err := sql.Open("pgx", dsn)
+	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
+	// test connection
+	if err := db.Ping(); err != nil {
 		return nil, err
 	}
 
+	// connection pool (AMAN untuk pooler)
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(30 * time.Minute)
 
 	log.Println("✅ Database connected successfully")
 	return db, nil
