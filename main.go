@@ -28,51 +28,60 @@ func main() {
 
 	if _, err := os.Stat(".env"); err == nil {
 		viper.SetConfigFile(".env")
-		viper.ReadInConfig()
+		if err := viper.ReadInConfig(); err != nil {
+			log.Println("⚠️ gagal baca .env:", err)
+		}
 	}
 
 	config := Config{
 		Port:    viper.GetString("PORT"),
 		DB_CONN: viper.GetString("DB_CONN"),
 	}
+
 	if config.Port == "" {
 		config.Port = "8080"
 	}
 
-	// ===== ROUTES =====
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	if config.DB_CONN == "" {
+		log.Fatal(" DB_CONN belum diset pada environment")
+	}
+
+	// ===== ROUTES BASIC =====
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"status": "aplikasi siap ok",
 		})
 	})
 
+	// ===== DB INIT (FAIL FAST) =====
+	db, err := database.InitDB(config.DB_CONN)
+	if err != nil {
+		log.Fatal(" DB gagal connect:", err)
+	}
+
+	repo := repositories.NewProductRepository(db)
+	service := services.NewProductService(repo)
+	handler := handlers.NewProductHandler(service)
+
+	// ===== API ROUTES =====
+	mux.HandleFunc("/api/produk", handler.HandleProducts)
+	mux.HandleFunc("/api/produk/", handler.HandleProductByID)
+
+	// ===== SERVER =====
 	srv := &http.Server{
 		Addr:         "0.0.0.0:" + config.Port,
-		Handler:      http.DefaultServeMux,
+		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	go func() {
-		log.Println("🚀 Server running on", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal(err)
-		}
-	}()
+	log.Println("🚀 Server running on", srv.Addr)
 
-	db, err := database.InitDB(config.DB_CONN)
-	if err != nil {
-		log.Println("⚠️ DB belum siap:", err)
-	} else {
-		repo := repositories.NewProductRepository(db)
-		service := services.NewProductService(repo)
-		handler := handlers.NewProductHandler(service)
-
-		http.HandleFunc("/api/produk", handler.HandleProducts)
-		http.HandleFunc("/api/produk/", handler.HandleProductByID)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal(" Server error:", err)
 	}
-
-	select {}
 }
