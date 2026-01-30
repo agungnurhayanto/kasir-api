@@ -1,42 +1,61 @@
 package main
 
 import (
+	"KASIR-API/database"
 	"KASIR-API/handlers"
+	"KASIR-API/repositories"
+	"KASIR-API/services"
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"strings"
+
+	"github.com/spf13/viper"
 )
+
+type Config struct {
+	Port    string `mapstructure:"PORT"`
+	DB_CONN string `mapstructure:"DB_CONN"`
+}
 
 func main() {
 
-	//GET  localhost:8080/api/categories -> menampilkan semua kategori dan add data
-	http.HandleFunc("/api/categories", handlers.CategoriesHandler)
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	//GET  localhost:8080/api/produk -> menampilkan semua produk dan add data
-	http.HandleFunc("/api/produk", handlers.ProductsHandler)
-	// END POINT CRUD CATEGORY BY ID
-
-	// END POINT CRUD CETEGORY
-	http.HandleFunc("/api/categories/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
-			handlers.GetCategoryByID(w, r)
-		} else if r.Method == "PUT" {
-			handlers.UpdateCategoryByID(w, r)
-		} else if r.Method == "DELETE" {
-			handlers.DeleteCategoryByID(w, r)
+	if _, err := os.Stat(".env"); err == nil {
+		viper.SetConfigFile(".env")
+		if err := viper.ReadInConfig(); err != nil {
+			log.Fatal("Gagal membaca .env:", err)
 		}
-	})
+	}
 
-	// END POINT CRUD PRODUK
-	http.HandleFunc("/api/produk/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
-			handlers.GetProdukByID(w, r)
-		} else if r.Method == "PUT" {
-			handlers.UpdateProdukByID(w, r)
-		} else if r.Method == "DELETE" {
-			handlers.DeleteProdukByID(w, r)
-		}
-	})
+	config := Config{
+		Port:    viper.GetString("PORT"),
+		DB_CONN: viper.GetString("DB_CONN"),
+	}
+
+	if config.Port == "" {
+		config.Port = "8080"
+	}
+
+	if config.DB_CONN == "" {
+		log.Fatal("DB_CONN kosong, pastikan .env terbaca")
+	}
+
+	db, err := database.InitDB(config.DB_CONN)
+	if err != nil {
+		log.Fatal("Failed to initialize database:", err)
+	}
+	defer db.Close()
+
+	productRepo := repositories.NewProductRepository(db)
+	productService := services.NewProductService(productRepo)
+	productHandler := handlers.NewProductHandler(productService)
+
+	http.HandleFunc("/api/produk", productHandler.HandleProducts)
+	http.HandleFunc("/api/produk/", productHandler.HandleProductByID)
 
 	// cek aplikasi running / tidak / health check / status aplikasi
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -47,11 +66,7 @@ func main() {
 		})
 	})
 
-	fmt.Println("Server is running on port 8080")
-
-	err := http.ListenAndServe(":8080", nil)
-	if err != nil {
-		fmt.Println("Kasir Api gagal berjalan")
-	}
+	log.Println("🚀 Server running on port", config.Port)
+	log.Fatal(http.ListenAndServe(":"+config.Port, nil))
 
 }
