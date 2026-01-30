@@ -16,8 +16,8 @@ import (
 )
 
 type Config struct {
-	Port    string
-	DB_CONN string
+	Port   string
+	DBConn string
 }
 
 func main() {
@@ -28,45 +28,42 @@ func main() {
 
 	if _, err := os.Stat(".env"); err == nil {
 		viper.SetConfigFile(".env")
-		if err := viper.ReadInConfig(); err != nil {
-			log.Println("⚠️ gagal baca .env:", err)
-		}
+		_ = viper.ReadInConfig()
 	}
 
 	config := Config{
-		Port:    viper.GetString("PORT"),
-		DB_CONN: viper.GetString("DB_CONN"),
+		Port:   viper.GetString("PORT"),
+		DBConn: viper.GetString("DB_CONN"),
 	}
 
 	if config.Port == "" {
 		config.Port = "8080"
 	}
 
-	if config.DB_CONN == "" {
-		log.Fatal(" DB_CONN belum diset pada environment")
+	if config.DBConn == "" {
+		log.Fatal("❌ DB_CONN belum diset")
 	}
 
-	// ===== ROUTES BASIC =====
+	// ===== ROUTER =====
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
-			"status": "aplikasi siap ok",
+			"status": "ok",
 		})
 	})
 
-	// ===== DB INIT (FAIL FAST) =====
-	db, err := database.InitDB(config.DB_CONN)
+	// ===== DB INIT =====
+	db, err := database.InitDB(config.DBConn)
 	if err != nil {
-		log.Fatal(" DB gagal connect:", err)
+		log.Fatal("❌ DB gagal connect:", err)
 	}
 
 	repo := repositories.NewProductRepository(db)
 	service := services.NewProductService(repo)
 	handler := handlers.NewProductHandler(service)
 
-	// ===== API ROUTES =====
 	mux.HandleFunc("/api/produk", handler.HandleProducts)
 	mux.HandleFunc("/api/produk/", handler.HandleProductByID)
 
@@ -80,8 +77,5 @@ func main() {
 	}
 
 	log.Println("🚀 Server running on", srv.Addr)
-
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(" Server error:", err)
-	}
+	log.Fatal(srv.ListenAndServe())
 }
