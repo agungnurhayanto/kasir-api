@@ -20,6 +20,8 @@ type Config struct {
 	DB_CONN string
 }
 
+var productHandler *handlers.ProductHandler
+
 func main() {
 
 	// ===== CONFIG =====
@@ -39,14 +41,31 @@ func main() {
 		config.Port = "8080"
 	}
 
-	// ===== ROUTES =====
+	// ===== ROUTES (REGISTER SEMUA DI AWAL) =====
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
-			"status": "aplikasi siap di gunakan / ok",
+			"status": "ok",
 		})
 	})
 
+	http.HandleFunc("/api/produk", func(w http.ResponseWriter, r *http.Request) {
+		if productHandler == nil {
+			http.Error(w, "Service not ready", http.StatusServiceUnavailable)
+			return
+		}
+		productHandler.HandleProducts(w, r)
+	})
+
+	http.HandleFunc("/api/produk/", func(w http.ResponseWriter, r *http.Request) {
+		if productHandler == nil {
+			http.Error(w, "Service not ready", http.StatusServiceUnavailable)
+			return
+		}
+		productHandler.HandleProductByID(w, r)
+	})
+
+	// ===== SERVER START DULU =====
 	srv := &http.Server{
 		Addr:         "0.0.0.0:" + config.Port,
 		Handler:      http.DefaultServeMux,
@@ -62,17 +81,21 @@ func main() {
 		}
 	}()
 
-	db, err := database.InitDB(config.DB_CONN)
-	if err != nil {
-		log.Println("⚠️ DB belum siap:", err)
-	} else {
+	// ===== INIT DB BACKGROUND =====
+	go func() {
+		db, err := database.InitDB(config.DB_CONN)
+		if err != nil {
+			log.Println("⚠️ DB belum siap:", err)
+			return
+		}
+
 		repo := repositories.NewProductRepository(db)
 		service := services.NewProductService(repo)
-		handler := handlers.NewProductHandler(service)
+		productHandler = handlers.NewProductHandler(service)
 
-		http.HandleFunc("/api/produk", handler.HandleProducts)
-		http.HandleFunc("/api/produk/", handler.HandleProductByID)
-	}
+		log.Println("✅ Database & handler ready")
+	}()
 
+	// ===== JAGA APP HIDUP =====
 	select {}
 }
