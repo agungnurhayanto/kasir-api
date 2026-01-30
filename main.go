@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -66,7 +67,14 @@ func main() {
 		})
 	})
 
-	log.Println("🚀 Server running on port", config.Port)
-	log.Fatal(http.ListenAndServe(":"+config.Port, nil))
+	srv := &http.Server{
+		Addr:         "0.0.0.0:" + config.Port,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	log.Println("🚀 Server running on", srv.Addr)
+	log.Fatal(srv.ListenAndServe())
 
 }
