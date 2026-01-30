@@ -16,54 +16,34 @@ import (
 )
 
 type Config struct {
-	Port    string `mapstructure:"PORT"`
-	DB_CONN string `mapstructure:"DB_CONN"`
+	Port    string
+	DB_CONN string
 }
 
 func main() {
 
+	// ===== CONFIG =====
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	if _, err := os.Stat(".env"); err == nil {
 		viper.SetConfigFile(".env")
-		if err := viper.ReadInConfig(); err != nil {
-			log.Fatal("Gagal membaca .env:", err)
-		}
+		viper.ReadInConfig()
 	}
 
 	config := Config{
 		Port:    viper.GetString("PORT"),
 		DB_CONN: viper.GetString("DB_CONN"),
 	}
-
 	if config.Port == "" {
 		config.Port = "8080"
 	}
 
-	if config.DB_CONN == "" {
-		log.Fatal("DB_CONN kosong, pastikan .env terbaca")
-	}
-
-	db, err := database.InitDB(config.DB_CONN)
-	if err != nil {
-		log.Fatal("Failed to initialize database:", err)
-	}
-	defer db.Close()
-
-	productRepo := repositories.NewProductRepository(db)
-	productService := services.NewProductService(productRepo)
-	productHandler := handlers.NewProductHandler(productService)
-
-	http.HandleFunc("/api/produk", productHandler.HandleProducts)
-	http.HandleFunc("/api/produk/", productHandler.HandleProductByID)
-
-	// cek aplikasi running / tidak / health check / status aplikasi
+	// ===== ROUTES =====
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
-			"status":  "ok",
-			"message": "Kasir Api Siap",
+			"status": "ok",
 		})
 	})
 
@@ -75,7 +55,24 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	log.Println("🚀 Server running on", srv.Addr)
-	log.Fatal(srv.ListenAndServe())
+	go func() {
+		log.Println("🚀 Server running on", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
 
+	db, err := database.InitDB(config.DB_CONN)
+	if err != nil {
+		log.Println("⚠️ DB belum siap:", err)
+	} else {
+		repo := repositories.NewProductRepository(db)
+		service := services.NewProductService(repo)
+		handler := handlers.NewProductHandler(service)
+
+		http.HandleFunc("/api/produk", handler.HandleProducts)
+		http.HandleFunc("/api/produk/", handler.HandleProductByID)
+	}
+
+	select {}
 }
