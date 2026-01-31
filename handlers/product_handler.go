@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"KASIR-API/models"
+	"KASIR-API/dto"
 	"KASIR-API/services"
 	"encoding/json"
 	"net/http"
@@ -41,14 +41,14 @@ func (h *ProductHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var product models.Product
-	err := json.NewDecoder(r.Body).Decode(&product)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	var req dto.ProductCreateRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	err = h.service.Create(&product)
+	result, err := h.service.Create(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -56,7 +56,7 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(product)
+	json.NewEncoder(w).Encode(result)
 }
 
 // HandleProductByID - GET/PUT/DELETE /api/produk/{id}
@@ -93,6 +93,7 @@ func (h *ProductHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
+	// ambil ID
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/produk/")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -100,22 +101,22 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var product models.Product
-	err = json.NewDecoder(r.Body).Decode(&product)
-	if err != nil {
+	// decode body ke DTO
+	var req dto.ProductUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	product.ID = id
-	err = h.service.Update(&product)
+	// panggil service (PAKAI DTO, BUKAN MODEL)
+	result, err := h.service.Update(id, req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(product)
+	json.NewEncoder(w).Encode(result)
 }
 
 // Delete - DELETE /api/produk/{id}
