@@ -17,8 +17,18 @@ func (s *ProductService) GetAll() ([]models.Product, error) {
 	return s.repo.GetAll()
 }
 
-func (s *ProductService) Create(data *models.Product) error {
-	return s.repo.Create(data)
+// func (s *ProductService) Create(data *models.Product) error {
+// 	return s.repo.Create(data)
+// }
+
+func (s *ProductService) Create(product *models.Product) error {
+	// simpan product
+	if err := s.repo.Create(product); err != nil {
+		return err
+	}
+	// 🔑 ambil ulang + preload category
+	return s.repo.FindByIDWithCategory(product.ID, product)
+
 }
 
 func (s *ProductService) GetByID(id int) (*models.Product, error) {

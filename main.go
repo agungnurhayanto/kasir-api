@@ -67,6 +67,13 @@ func main() {
 	mux.HandleFunc("/api/produk", handler.HandleProducts)
 	mux.HandleFunc("/api/produk/", handler.HandleProductByID)
 
+	categoryRepo := repositories.NewCategoryRepository(db)
+	categoryService := services.NewCategoryService(categoryRepo)
+	categoryHandler := handlers.NewCategoryHandler(categoryService)
+
+	mux.HandleFunc("/api/categories", categoryHandler.HandleCategories)
+	mux.HandleFunc("/api/categories/", categoryHandler.HandleCategoryByID)
+
 	// ===== SERVER =====
 	srv := &http.Server{
 		Addr:         "0.0.0.0:" + config.Port,
