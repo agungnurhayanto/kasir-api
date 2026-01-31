@@ -16,9 +16,7 @@ type ProductUpdateRequest struct {
 	CategoryID int    `json:"category_id"`
 }
 
-// ==========================
-// RESPONSE DTO
-// ==========================
+// Untuk response
 
 type CategoryResponse struct {
 	ID          int    `json:"id"`
