@@ -4,6 +4,7 @@ import (
 	"KASIR-API/models"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -61,29 +62,50 @@ func (repo *TransactionRepository) CreateTransaction(items []models.CheckoutItem
 		return nil, err
 	}
 
-	// for i := range details {
-	// 	details[i].TransactionID = transactionID
-	// 	_, err = tx.Exec("INSERT INTO transaction_details (transaction_id, product_id, quantity, subtotal) VALUES ($1, $2, $3, $4)",
-	// 		transactionID, details[i].ProductID, details[i].Quantity, details[i].Subtotal)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// }
+	if len(details) > 0 {
 
-	for i := range details {
-		details[i].TransactionID = transactionID
+		valueStrings := []string{}
+		valueArgs := []interface{}{}
+		argID := 1
 
-		err = tx.QueryRow(
-			"INSERT INTO transaction_details (transaction_id, product_id, quantity, subtotal) VALUES ($1, $2, $3, $4) RETURNING id",
-			transactionID,
-			details[i].ProductID,
-			details[i].Quantity,
-			details[i].Subtotal,
-		).Scan(&details[i].ID)
+		for _, d := range details {
+			valueStrings = append(valueStrings,
+				fmt.Sprintf("($%d,$%d,$%d,$%d)", argID, argID+1, argID+2, argID+3))
 
+			valueArgs = append(valueArgs,
+				transactionID,
+				d.ProductID,
+				d.Quantity,
+				d.Subtotal,
+			)
+
+			argID += 4
+		}
+
+		query := fmt.Sprintf(`
+			INSERT INTO transaction_details
+			(transaction_id, product_id, quantity, subtotal)
+			VALUES %s
+			RETURNING id
+		`, strings.Join(valueStrings, ","))
+
+		rows, err := tx.Query(query, valueArgs...)
 		if err != nil {
 			return nil, err
 		}
+		defer rows.Close()
+
+		i := 0
+		for rows.Next() {
+			if err := rows.Scan(&details[i].ID); err != nil {
+				return nil, err
+			}
+			i++
+		}
+	}
+
+	for i := range details {
+		details[i].TransactionID = transactionID
 	}
 
 	if err := tx.Commit(); err != nil {
