@@ -5,6 +5,7 @@ import (
 	"KASIR-API/handlers"
 	"KASIR-API/repositories"
 	"KASIR-API/services"
+	"KASIR-API/utils"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -23,6 +24,7 @@ type Config struct {
 func main() {
 
 	// ===== CONFIG =====
+	utils.InitTimezone()
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
@@ -73,6 +75,21 @@ func main() {
 
 	mux.HandleFunc("/api/categories", categoryHandler.HandleCategories)
 	mux.HandleFunc("/api/categories/", categoryHandler.HandleCategoryByID)
+
+	// untuk bikin transaksi
+	transactionRepo := repositories.NewTransactionRepository(db)
+	transactionService := services.NewTransactionService(transactionRepo)
+	transactionHandler := handlers.NewTransactionHandler(transactionService)
+
+	mux.HandleFunc("/api/checkout", transactionHandler.HandleCheckout)
+
+	// untuk report transaksi
+	reportRepo := repositories.NewReportRepository(db)
+	reportService := services.NewReportService(reportRepo)
+	reportHandler := handlers.NewReportHandler(reportService)
+
+	mux.HandleFunc("/api/report", reportHandler.GetReport)               // ini untuk end point option chalenge get all trx by star dan end date
+	mux.HandleFunc("/api/report/hari-ini", reportHandler.GetTodayReport) // ini untuk end point hari-ini
 
 	// ===== SERVER =====
 	srv := &http.Server{
