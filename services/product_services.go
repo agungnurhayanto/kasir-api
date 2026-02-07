@@ -17,8 +17,8 @@ func NewProductService(repo *repositories.ProductRepository) *ProductService {
 	return &ProductService{repo: repo}
 }
 
-func (s *ProductService) GetAll() ([]dto.ProductResponse, error) {
-	data, err := s.repo.GetAll()
+func (s *ProductService) GetAll(name string) ([]dto.ProductResponse, error) {
+	data, err := s.repo.GetAll(name)
 	if err != nil {
 		return nil, err
 	}
